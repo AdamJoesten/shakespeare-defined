@@ -9,7 +9,8 @@
     "lint": "next lint",
     "exec": "ts-node --project ./src/data-collection/tsconfig.json",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --projects src/app --watch",
+    "test:data": "jest --projects src/data"
   },
   "dependencies": {
     "next": "14.2.3",
@@ -30,6 +31,7 @@
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "jsdom": "^24.0.0",
+    "ts-jest": "^29.1.2",
     "ts-node": "^10.9.2",
     "typescript": "^5"
   }
