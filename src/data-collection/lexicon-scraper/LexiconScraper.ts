@@ -1,24 +1,22 @@
-import axios, { AxiosError, AxiosInstance } from "axios";
 import { JSDOM } from "jsdom";
-import fs from "fs/promises";
-import path from "path";
+import { WebScraper } from "../WebScraper";
+import { AxiosClient } from "../AxiosClient";
 
 const document = new JSDOM().window.document;
 type document = typeof document;
-export class WebScraper {
-  client: AxiosInstance;
-  constructor(client: AxiosInstance) {
+export class LexiconScraper implements WebScraper {
+  client: AxiosClient;
+  constructor(client: AxiosClient) {
     this.client = client;
   }
 
   async init(startPath: string) {
-    await fs.writeFile(path.resolve(__dirname, "error.log"), "");
-    const startUrl = this.client.defaults.baseURL + startPath;
+    const startUrl = this.client.baseUrl.href + startPath;
     try {
       return await this.scrape([startUrl]);
-    } catch (e) {
-      await this.logError(e);
-      return [];
+    } catch (error) {
+      if (error instanceof Error) throw error
+      else throw new Error(JSON.stringify(error))
     }
   }
 
@@ -44,14 +42,14 @@ export class WebScraper {
       const definitions: any[] = [];
 
       for (const url of definitionUrls) {
-        const definition = await this.fetchData(url!);
+        const definition = await this.client.get({ url });
         definitions.push(definition);
       }
 
       return definitions;
-    } catch (e) {
-      this.logError(e);
-      return [];
+    } catch (error) {
+      if (error instanceof Error) throw error
+      else throw new Error(JSON.stringify(error))
     }
   }
 
@@ -72,15 +70,20 @@ export class WebScraper {
       while (pageUrls.length) {
         const currUrl = pageUrls.shift();
         if (!currUrl || visitedUrls.has(currUrl)) continue;
-
-        const { document } = new JSDOM(await this.fetchData(currUrl)).window;
+        const data = await this.client.get({ url: currUrl }); // TODO How to type this?
+        const html = data as string;
+        const { document } = new JSDOM(html).window;
         visitedUrls.add(currUrl);
 
-        console.info(`${new Date().toISOString()} - INFO: Getting page urls: ${currUrl}`);
+        console.info(
+          `${new Date().toISOString()} - INFO: Getting page urls: ${currUrl}`
+        );
         const newPageUrls = this.getPageUrls(document);
 
-        console.info(`${new Date().toISOString()} - INFO: Getting definitions: ${currUrl}`);
-        const currDefinitions = await this.getDefinitions(document);
+        console.info(
+          `${new Date().toISOString()} - INFO: Getting definitions: ${currUrl}`
+        );
+        const currDefinitions = (await this.getDefinitions(document)) || [];
 
         for (const url of newPageUrls) {
           if (!visitedUrls.has(url)) pageUrls.push(url!);
@@ -88,31 +91,18 @@ export class WebScraper {
         definitions.push(...currDefinitions);
       }
       return definitions;
-    } catch (e) {
-      await this.logError(e);
+    } catch (error) {
+      if (error instanceof Error) throw error
+      else throw new Error(JSON.stringify(error))
     }
-  }
-
-  private async fetchData(url: string) {
-    try {
-      const response = await this.client.get(url);
-      return response.data;
-    } catch (e) {
-      await this.logError(e);
-    }
-  }
-
-  private get baseUrl() {
-    return this.client.defaults.baseURL;
   }
 
   private createUrl(path: string) {
-    return this.baseUrl?.concat(path);
+    return this.client.baseUrl.href + path;
   }
 
   private isValidUrl(data: unknown): data is string {
     if (typeof data !== "string") {
-      this.logError(new Error(`isValidUrl() - Invalid Input: ${data}`));
       return false;
     }
 
@@ -120,7 +110,6 @@ export class WebScraper {
       new URL(data);
       return true;
     } catch (e) {
-      this.logError(e);
       return false;
     }
   }
@@ -131,31 +120,5 @@ export class WebScraper {
 
   private isImageElement(element: Element): element is HTMLImageElement {
     return element.tagName.toLowerCase() === "img";
-  }
-
-  private async logError(e: unknown) {
-    let message: string;
-    let logMessage: string;
-    if (e instanceof AxiosError) {
-      message = `${new Date().toISOString()} - ERROR: ${e.message}\n`;
-      // prettier-ignore
-      logMessage = `${new Date().toISOString()} - ERROR: ${JSON.stringify(e.toJSON())}\n`;
-    } else if (e instanceof Error) {
-      message = `${new Date().toISOString()} - ERROR: ${e.message}\n`;
-      // prettier-ignore
-      logMessage = `${new Date().toISOString()} - ERROR: ${JSON.stringify(e)}\n`;
-    } else {
-      message = `${new Date().toISOString()} - ERROR: Unknown error\n`;
-      logMessage = `${new Date().toISOString()} - ERROR: Unknown error\n`;
-    }
-    try {
-      console.error(`${new Date().toISOString()} - ERROR: ${message}`);
-      await fs.appendFile(path.resolve(__dirname, "error.log"), logMessage);
-    } catch (err) {
-      console.error(
-        `${new Date().toISOString()} - WARNING: Error writing to log file`,
-        err
-      );
-    }
   }
 }
