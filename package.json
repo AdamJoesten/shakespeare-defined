@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "exec": "ts-node --project ./src/data-collection/tsconfig.json",
+    "exec": "ts-node --project ./src/etl/tsconfig.json",
     "test": "jest",
     "test:watch": "jest --projects src/app --watch",
     "test:data": "jest --projects src/data"
